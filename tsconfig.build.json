@@ -1,0 +1,32 @@
+{
+    "extends": "@tada5hi/tsconfig",
+    "compilerOptions": {
+        "strict": false,
+        "sourceMap": true,
+        "declarationMap": true,
+
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
+
+        "lib": ["ESNext", "DOM"],
+        "target": "ES2022",
+
+        "moduleResolution": "bundler",
+        "module": "ESNext",
+
+        "allowImportingTsExtensions": true,
+        "verbatimModuleSyntax": false,
+
+        "noImplicitReturns": false,
+        "noImplicitOverride": false,
+        "noUnusedLocals": false,
+        "noUnusedParameters": false,
+        "noFallthroughCasesInSwitch": false,
+        "noUncheckedIndexedAccess": false,
+        "noEmitOnError": false
+    },
+    "exclude": [
+        "node_modules",
+        "dist"
+    ]
+}

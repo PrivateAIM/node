@@ -1,0 +1,52 @@
+node_modules
+
+tsconfig.tsbuildinfo
+tsconfig.build.tsbuildinfo
+
+# local env files
+.env.local
+.env.*.local
+.env
+
+# Logs
+/logs
+*.log
+npm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage
+.nyc_output
+
+# Dependency directories
+node_modules/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# build output
+dist
+
+# IDE / Editor
+.idea
+
+# macOS
+.DS_Store
+
+# Vim swap files
+*.swp
+
+# Nx
+.nx
+
+# Local agent working docs
+.agents/plans
+.claude/settings.local.json

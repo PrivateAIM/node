@@ -1,0 +1,10 @@
+**/node_modules/
+**/dist
+.nuxt
+docker
+dist
+node_modules
+writable
+**/.env
+*/*/authup.*
+.nx

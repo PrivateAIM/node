@@ -1,0 +1,44 @@
+{
+    "name": "@privateaim/node-root",
+    "type": "module",
+    "private": true,
+    "author": {
+        "name": "Peter Placzek",
+        "email": "contact@tada5hi.net",
+        "url": "https://tada5hi.net"
+    },
+    "license": "Apache-2.0",
+    "version": "0.1.0",
+    "description": "Central monorepo for the FLAME node-side services (message broker, and more to come).",
+    "workspaces": [
+        "apps/*",
+        "packages/*"
+    ],
+    "devDependencies": {
+        "@swc/core": "^1.15.40",
+        "@tada5hi/commitlint-config": "^1.3.1",
+        "@tada5hi/eslint-config": "^2.3.0",
+        "@tada5hi/tsconfig": "^0.7.2",
+        "@types/node": "^25.9.1",
+        "cross-env": "^10.1.0",
+        "eslint": "^10.4.1",
+        "husky": "^9.1.7",
+        "lint-staged": "^17.0.5",
+        "nx": "^22.7.5",
+        "rimraf": "^6.1.3",
+        "tsdown": "^0.22.1",
+        "typescript": "6.0.3",
+        "typescript-eslint": "^8.60.0",
+        "unplugin-swc": "^1.5.9"
+    },
+    "scripts": {
+        "build": "npx nx run-many -t build",
+        "test": "npx nx run-many -t test",
+        "lint": "eslint",
+        "lint:fix": "npm run lint -- --fix",
+        "prepare": "husky"
+    },
+    "lint-staged": {
+        "*.{js,ts}": "npm run lint:fix"
+    }
+}

@@ -1,0 +1,19 @@
+/*
+ * Copyright (c) 2026.
+ * Author Peter Placzek (tada5hi)
+ * For the full copyright and license information,
+ * view the LICENSE file that was distributed with this source code.
+ */
+
+import { defineCommand } from 'citty';
+import { createApplication } from '../../app/index.ts';
+
+export function defineCLIStartCommand() {
+    return defineCommand({
+        meta: { name: 'start' },
+        async setup() {
+            const app = createApplication();
+            await app.setup();
+        },
+    });
+}
