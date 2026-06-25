@@ -24,17 +24,26 @@ type SseWakeupSourceContext = {
     fetchFn?: typeof fetch,
     /** Backoff between reconnect attempts. */
     reconnectDelayMs?: number,
+    /**
+     * Abort and reconnect if no event — including the Hub's `ping` heartbeats —
+     * arrives within this window; guards against silently half-open connections
+     * that never emit FIN/RST. Must exceed the Hub's heartbeat interval. `<= 0`
+     * disables the watchdog.
+     */
+    idleTimeoutMs?: number,
     logger?: Logger
 };
 
 const DEFAULT_RECONNECT_DELAY_MS = 3000;
 
+const DEFAULT_IDLE_TIMEOUT_MS = 60_000;
+
 /**
  * Parse a byte stream of Server-Sent Events into `{ event, data }` records.
  * Pure and transport-agnostic: events are separated by a blank line, `event:`
  * sets the type (default `message`), and consecutive `data:` lines are joined
- * with newlines (per the SSE spec). Comment lines (`:`) and unknown fields are
- * ignored.
+ * with newlines (per the SSE spec). CR / CRLF line endings are normalised to LF,
+ * comment lines (`:`) and unknown fields are ignored.
  */
 export async function* parseSseStream(
     source: AsyncIterable<Uint8Array>,
@@ -44,6 +53,15 @@ export async function* parseSseStream(
 
     for await (const chunk of source) {
         buffer += decoder.decode(chunk, { stream: true });
+
+        // Normalise CR / CRLF to LF (SSE spec). A trailing CR is held back: it
+        // may be the first half of a CRLF that is split across two chunks.
+        let trailingCr = '';
+        if (buffer.endsWith('\r')) {
+            trailingCr = '\r';
+            buffer = buffer.slice(0, -1);
+        }
+        buffer = buffer.replace(/\r\n?/g, '\n') + trailingCr;
 
         let boundary = buffer.indexOf('\n\n');
         while (boundary !== -1) {
@@ -96,7 +114,12 @@ function isMessagePendingEvent(value: unknown): value is MessagePendingEvent {
     }
 
     const { recipient } = value as { recipient?: unknown };
-    return typeof recipient === 'object' && recipient !== null;
+    if (typeof recipient !== 'object' || recipient === null) {
+        return false;
+    }
+
+    const { type, id } = recipient as { type?: unknown, id?: unknown };
+    return typeof type === 'string' && typeof id === 'string';
 }
 
 async function* readableToAsyncIterable(
@@ -122,8 +145,9 @@ async function* readableToAsyncIterable(
  * Consumes the Hub's `messagePending` SSE stream (`GET /messages/stream`) and
  * forwards each signal to subscribers. `EventSource` can't carry the node's
  * `Authorization` header, so the stream is read over `fetch`; the loop
- * auto-reconnects with backoff until {@link stop}. `ping` heartbeats and any
- * non-`messagePending` events are ignored.
+ * auto-reconnects with backoff until {@link stop}, and an idle watchdog drops a
+ * connection that has gone silent (no heartbeats) so it can be re-established.
+ * `ping` heartbeats and any non-`messagePending` events are ignored.
  */
 export class SseWakeupSource implements IWakeupSource {
     protected url: string;
@@ -134,11 +158,17 @@ export class SseWakeupSource implements IWakeupSource {
 
     protected reconnectDelayMs: number;
 
+    protected idleTimeoutMs: number;
+
     protected logger: Logger | undefined;
 
     protected listeners = new Set<(event: MessagePendingEvent) => void>();
 
-    protected controller: AbortController | undefined;
+    /** Aborted once, by {@link stop}, to tear the whole loop down. */
+    protected stopController: AbortController | undefined;
+
+    /** Aborted per connection — by {@link stop} or by the idle watchdog. */
+    protected connController: AbortController | undefined;
 
     protected loop: Promise<void> | undefined;
 
@@ -149,6 +179,7 @@ export class SseWakeupSource implements IWakeupSource {
         this.authorization = ctx.authorization;
         this.fetchFn = ctx.fetchFn ?? fetch;
         this.reconnectDelayMs = ctx.reconnectDelayMs ?? DEFAULT_RECONNECT_DELAY_MS;
+        this.idleTimeoutMs = ctx.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
         this.logger = ctx.logger;
     }
 
@@ -165,14 +196,14 @@ export class SseWakeupSource implements IWakeupSource {
         }
 
         this.running = true;
+        this.stopController = new AbortController();
         this.loop = this.run();
     }
 
     async stop(): Promise<void> {
         this.running = false;
-        if (this.controller) {
-            this.controller.abort();
-        }
+        this.stopController?.abort();
+        this.connController?.abort();
         if (this.loop) {
             await this.loop;
             this.loop = undefined;
@@ -196,8 +227,13 @@ export class SseWakeupSource implements IWakeupSource {
     }
 
     protected async connect(): Promise<void> {
-        const controller = new AbortController();
-        this.controller = controller;
+        const { stopController } = this;
+        if (!stopController) {
+            return;
+        }
+
+        const conn = new AbortController();
+        this.connController = conn;
 
         const authorization = await this.authorization();
         const response = await this.fetchFn(this.url, {
@@ -206,16 +242,38 @@ export class SseWakeupSource implements IWakeupSource {
                 accept: 'text/event-stream',
                 authorization,
             },
-            signal: controller.signal,
+            signal: AbortSignal.any([stopController.signal, conn.signal]),
         });
 
         if (!response.ok || !response.body) {
             throw new Error(`unexpected response (status ${response.status})`);
         }
 
-        for await (const event of parseSseStream(readableToAsyncIterable(response.body))) {
-            if (event.event === WakeupEventName.MESSAGE_PENDING) {
-                this.dispatch(event.data);
+        let idleTimer: ReturnType<typeof setTimeout> | undefined;
+        const armIdle = () => {
+            if (this.idleTimeoutMs <= 0) {
+                return;
+            }
+            if (idleTimer) {
+                clearTimeout(idleTimer);
+            }
+            idleTimer = setTimeout(() => conn.abort(), this.idleTimeoutMs);
+            if (typeof idleTimer.unref === 'function') {
+                idleTimer.unref();
+            }
+        };
+
+        try {
+            armIdle();
+            for await (const event of parseSseStream(readableToAsyncIterable(response.body))) {
+                armIdle();
+                if (event.event === WakeupEventName.MESSAGE_PENDING) {
+                    this.dispatch(event.data);
+                }
+            }
+        } finally {
+            if (idleTimer) {
+                clearTimeout(idleTimer);
             }
         }
     }
@@ -243,14 +301,27 @@ export class SseWakeupSource implements IWakeupSource {
 
     protected delay(ms: number): Promise<void> {
         return new Promise((resolve) => {
-            const timer = setTimeout(resolve, ms);
+            const signal = this.stopController?.signal;
+            if (signal?.aborted) {
+                resolve();
+                return;
+            }
+
+            let timer: ReturnType<typeof setTimeout>;
+            const onAbort = () => {
+                clearTimeout(timer);
+                resolve();
+            };
+
+            timer = setTimeout(() => {
+                signal?.removeEventListener('abort', onAbort);
+                resolve();
+            }, ms);
             if (typeof timer.unref === 'function') {
                 timer.unref();
             }
-            this.controller?.signal.addEventListener('abort', () => {
-                clearTimeout(timer);
-                resolve();
-            }, { once: true });
+
+            signal?.addEventListener('abort', onAbort, { once: true });
         });
     }
 }
