@@ -24,7 +24,7 @@ npm run lint:fix                # ESLint with auto-fix
 npm run cli --workspace=apps/node-message-broker -- start
 ```
 
-- **Node.js**: 22
+- **Node.js**: 24
 - **Package manager**: npm (workspaces)
 - **Build orchestration**: Nx
 

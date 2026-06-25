@@ -1,5 +1,8 @@
 # @privateaim/node-message-broker
 
+> Part of the [FLAME Node](../../README.md) monorepo — one of the node-side (data-station)
+> services for the FLAME platform, alongside the central [Hub](https://github.com/PrivateAIM/hub).
+
 The **node-side message broker** for the FLAME platform. It is the thin TypeScript
 service that replaces the legacy Java `node-message-broker`. It owns only:
 
