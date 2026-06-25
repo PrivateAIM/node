@@ -19,6 +19,9 @@
     },
     "license": "Apache-2.0",
     "description": "Node-side message broker: container-facing REST API, end-to-end crypto, and local delivery; relays to the Hub durable mailbox.",
+    "engines": {
+        "node": ">=24"
+    },
     "dependencies": {
         "@privateaim/errors": "^0.8.42",
         "@privateaim/kit": "^0.11.5",

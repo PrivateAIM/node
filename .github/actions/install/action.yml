@@ -1,0 +1,28 @@
+name: 'Install'
+description: 'Prepares the repo for a job by checking out and installing dependencies'
+inputs:
+    node-version:
+        description: 'The node version to setup'
+        required: true
+    node-registry:
+        description: 'Define registry-url'
+        required: false
+
+runs:
+    using: 'composite'
+    steps:
+        -   name: echo github.ref
+            shell: bash
+            run: echo ${{ github.ref }}
+
+        -   name: Use Node.js ${{ inputs.node-version }}
+            uses: actions/setup-node@v6
+            with:
+                node-version: ${{ inputs.node-version }}
+                registry-url: ${{ inputs.node-registry }}
+                cache: npm
+
+        -   name: Install
+            shell: bash
+            run: |
+                npm ci
