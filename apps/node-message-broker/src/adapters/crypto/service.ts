@@ -14,6 +14,7 @@ import {
     sealMessage,
 } from '@privateaim/kit';
 import type { MessageSealInput } from '@privateaim/kit';
+import { LRUCache } from 'lru-cache';
 import type { ICryptoService } from '../../core/crypto/index.ts';
 
 const ECDH_PARAMS = { name: 'ECDH', namedCurve: 'P-256' } as const;
@@ -40,16 +41,16 @@ export class CryptoService implements ICryptoService {
 
     private privateKeyPromise?: Promise<CryptoKey>;
 
-    protected readonly publicKeyCacheMax: number;
-
     // Bounded LRU keyed by the raw hex PEM (distinct keys never collide). The peer
     // set is operator-controlled and small, so the cap is only a backstop against
     // unbounded growth over a long-lived process.
-    protected readonly publicKeyCache = new Map<string, Promise<CryptoKey>>();
+    protected readonly publicKeyCache: LRUCache<string, Promise<CryptoKey>>;
 
     constructor(ctx: CryptoServiceContext) {
         this.privateKey = ctx.privateKey;
-        this.publicKeyCacheMax = Math.max(1, ctx.publicKeyCacheMax ?? DEFAULT_PUBLIC_KEY_CACHE_MAX);
+
+        const max = Math.max(1, Math.floor(ctx.publicKeyCacheMax ?? DEFAULT_PUBLIC_KEY_CACHE_MAX));
+        this.publicKeyCache = new LRUCache<string, Promise<CryptoKey>>({ max });
     }
 
     private getPrivateKey(): Promise<CryptoKey> {
@@ -81,9 +82,6 @@ export class CryptoService implements ICryptoService {
     private getPublicKey(hex: string): Promise<CryptoKey> {
         const cached = this.publicKeyCache.get(hex);
         if (cached) {
-            // re-insert to mark as most-recently-used
-            this.publicKeyCache.delete(hex);
-            this.publicKeyCache.set(hex, cached);
             return cached;
         }
 
@@ -92,20 +90,13 @@ export class CryptoService implements ICryptoService {
         }
 
         const promise = importAsymmetricPublicKey(hexToUTF8(hex), ECDH_PARAMS);
+        // evict a rejected import (`peek` so we don't disturb LRU recency) so a
+        // corrected key can be retried rather than failing forever.
         promise.catch(() => {
-            if (this.publicKeyCache.get(hex) === promise) {
+            if (this.publicKeyCache.peek(hex) === promise) {
                 this.publicKeyCache.delete(hex);
             }
         });
-
-        // evict the least-recently-used entry (oldest insertion) past the cap
-        while (this.publicKeyCache.size >= this.publicKeyCacheMax) {
-            const oldest = this.publicKeyCache.keys().next().value;
-            if (oldest === undefined) {
-                break;
-            }
-            this.publicKeyCache.delete(oldest);
-        }
 
         this.publicKeyCache.set(hex, promise);
         return promise;
