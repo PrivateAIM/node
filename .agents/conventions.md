@@ -55,6 +55,10 @@ Output: ESM (`dist/**/*.mjs`) preserving source structure + `.d.ts`. CLI entry a
 - **Naming**: interfaces are `I`-prefixed (`IHubClient`); types are not (`WebhookSubscription`).
 - **Types/interfaces** live in `types.ts` in the same directory, never inline in module files.
 - Prefer static imports; no dynamic imports for types. No `as any`.
+- **No third-party re-exports.** Don't forward symbols from external packages through local
+  modules (e.g. `import type { X } from '@pkg'; export type { X };`). Import third-party
+  symbols directly from their source package at each use site. (Local `index.ts` barrels that
+  re-export sibling modules within the same directory are still fine.)
 
 ## Published Dependencies
 

@@ -7,8 +7,6 @@
 
 import type { MessageSealInput } from '@privateaim/kit';
 
-export type { MessageSealInput };
-
 /**
  * Node-to-node end-to-end crypto port.
  *

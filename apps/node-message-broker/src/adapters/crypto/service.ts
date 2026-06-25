@@ -13,12 +13,16 @@ import {
     openMessage,
     sealMessage,
 } from '@privateaim/kit';
-import type { ICryptoService, MessageSealInput } from '../../core/crypto/index.ts';
+import type { MessageSealInput } from '@privateaim/kit';
+import type { ICryptoService } from '../../core/crypto/index.ts';
 
 const ECDH_PARAMS = { name: 'ECDH', namedCurve: 'P-256' } as const;
 
+const DEFAULT_PUBLIC_KEY_CACHE_MAX = 1024;
+
 type CryptoServiceContext = {
     privateKey?: string, // hex-encoded PKCS#8 PEM (config.nodePrivateKey, OPTIONAL)
+    publicKeyCacheMax?: number, // max imported peer keys to retain (LRU); default 1024
 };
 
 /**
@@ -36,12 +40,16 @@ export class CryptoService implements ICryptoService {
 
     private privateKeyPromise?: Promise<CryptoKey>;
 
-    // Unbounded by design, but bounded in practice by the operator-controlled set
-    // of peer nodes; keyed by the raw hex PEM so distinct keys never collide.
-    private readonly publicKeyCache = new Map<string, Promise<CryptoKey>>();
+    protected readonly publicKeyCacheMax: number;
+
+    // Bounded LRU keyed by the raw hex PEM (distinct keys never collide). The peer
+    // set is operator-controlled and small, so the cap is only a backstop against
+    // unbounded growth over a long-lived process.
+    protected readonly publicKeyCache = new Map<string, Promise<CryptoKey>>();
 
     constructor(ctx: CryptoServiceContext) {
         this.privateKey = ctx.privateKey;
+        this.publicKeyCacheMax = Math.max(1, ctx.publicKeyCacheMax ?? DEFAULT_PUBLIC_KEY_CACHE_MAX);
     }
 
     private getPrivateKey(): Promise<CryptoKey> {
@@ -73,6 +81,9 @@ export class CryptoService implements ICryptoService {
     private getPublicKey(hex: string): Promise<CryptoKey> {
         const cached = this.publicKeyCache.get(hex);
         if (cached) {
+            // re-insert to mark as most-recently-used
+            this.publicKeyCache.delete(hex);
+            this.publicKeyCache.set(hex, cached);
             return cached;
         }
 
@@ -86,6 +97,16 @@ export class CryptoService implements ICryptoService {
                 this.publicKeyCache.delete(hex);
             }
         });
+
+        // evict the least-recently-used entry (oldest insertion) past the cap
+        while (this.publicKeyCache.size >= this.publicKeyCacheMax) {
+            const oldest = this.publicKeyCache.keys().next().value;
+            if (oldest === undefined) {
+                break;
+            }
+            this.publicKeyCache.delete(oldest);
+        }
+
         this.publicKeyCache.set(hex, promise);
         return promise;
     }

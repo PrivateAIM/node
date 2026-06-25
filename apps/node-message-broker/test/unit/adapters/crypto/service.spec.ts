@@ -14,6 +14,13 @@ import {
 } from '@privateaim/kit';
 import { CryptoService } from '../../../../src/adapters/crypto/index.ts';
 
+/** Exposes the protected cache size so the LRU bound can be asserted. */
+class InspectableCryptoService extends CryptoService {
+    get cacheSize() {
+        return this.publicKeyCache.size;
+    }
+}
+
 const ECDH_PARAMS = { name: 'ECDH', namedCurve: 'P-256' } as const;
 
 async function generatePair() {
@@ -249,5 +256,26 @@ describe('adapters/crypto/service', () => {
         const { serviceA } = await setup();
 
         await expect(serviceA.open('AAAA', 'zzzz-not-hex!!')).rejects.toThrow(/Peer public key.*valid hex|valid hex/i);
+    });
+
+    it('bounds the public-key cache by evicting least-recently-used peers', async () => {
+        const a = await generatePair();
+        const service = new InspectableCryptoService({
+            privateKey: await privHex(a),
+            publicKeyCacheMax: 2,
+        });
+
+        const peers = [await generatePair(), await generatePair(), await generatePair()];
+        for (const peer of peers) {
+            await service.seal('x', await pubHex(peer));
+        }
+
+        // three distinct peers were sealed to, but the cap holds
+        expect(service.cacheSize).toBeLessThanOrEqual(2);
+
+        // an evicted peer is simply re-imported on next use — still seals
+        const frame = await service.seal('y', await pubHex(peers[0]));
+        expect(typeof frame).toBe('string');
+        expect(service.cacheSize).toBeLessThanOrEqual(2);
     });
 });
