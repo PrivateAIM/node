@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="130" height="130" viewBox="0 0 120 120" fill="none" role="img" aria-label="FLAME Node">
+    <defs>
+        <linearGradient id="node-core" x1="42" y1="42" x2="78" y2="78" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#4cae4c"/>
+            <stop offset="1" stop-color="#1f6f4a"/>
+        </linearGradient>
+    </defs>
+
+    <!-- links from the central data station to its federation peers -->
+    <g stroke="#3c873a" stroke-width="3" stroke-opacity="0.4" stroke-linecap="round">
+        <line x1="60" y1="60" x2="60" y2="20"/>
+        <line x1="60" y1="60" x2="95" y2="40"/>
+        <line x1="60" y1="60" x2="95" y2="80"/>
+        <line x1="60" y1="60" x2="60" y2="100"/>
+        <line x1="60" y1="60" x2="25" y2="80"/>
+        <line x1="60" y1="60" x2="25" y2="40"/>
+    </g>
+
+    <!-- peer nodes -->
+    <g fill="#9fd8a0">
+        <circle cx="60" cy="20" r="7"/>
+        <circle cx="95" cy="40" r="7"/>
+        <circle cx="95" cy="80" r="7"/>
+        <circle cx="60" cy="100" r="7"/>
+        <circle cx="25" cy="80" r="7"/>
+        <circle cx="25" cy="40" r="7"/>
+    </g>
+
+    <!-- this node (the data station) -->
+    <circle cx="60" cy="60" r="18" fill="url(#node-core)"/>
+    <circle cx="60" cy="60" r="18" fill="none" stroke="#ffffff" stroke-opacity="0.25" stroke-width="2"/>
+</svg>
