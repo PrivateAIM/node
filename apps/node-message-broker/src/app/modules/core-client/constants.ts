@@ -6,6 +6,9 @@
  */
 
 import { TypedToken } from 'eldin';
-import type { IParticipantResolver } from '../../../core/analysis/index.ts';
+import type { IAnalysisClientLookup, IParticipantResolver } from '../../../core/analysis/index.ts';
 
-export const CoreClientInjectionKey = { ParticipantResolver: new TypedToken<IParticipantResolver>('ParticipantResolver') };
+export const CoreClientInjectionKey = {
+    ParticipantResolver: new TypedToken<IParticipantResolver>('ParticipantResolver'),
+    AnalysisClientLookup: new TypedToken<IAnalysisClientLookup>('AnalysisClientLookup'),
+};

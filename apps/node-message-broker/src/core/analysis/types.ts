@@ -33,12 +33,12 @@ export interface IAnalysisNodeProvider {
 }
 
 /**
- * Analysis authorization lives node-side (the Hub is analysis-agnostic). Asserts
- * the calling analysis client holds `ANALYSIS_SELF_MESSAGE_BROKER_USE` — read from
- * the analysis client's token claims, or via server-core introspection.
+ * Resolves the Authup client id that owns an analysis (server-core), used to bind
+ * a caller to its analysis. Narrow port; the live implementation wraps
+ * `@privateaim/core-http-kit`'s `analysis.getOne`.
  */
-export interface IAnalysisPolicy {
-    assertMayUse(analysisId: string, token: string): Promise<void>;
+export interface IAnalysisClientLookup {
+    getClientId(analysisId: string): Promise<string | null>;
 }
 
 /**
