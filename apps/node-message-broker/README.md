@@ -1,10 +1,34 @@
-# @privateaim/node-message-broker
+<p align="center">
+  <a href="https://github.com/PrivateAIM/node" target="_blank" rel="noopener noreferrer">
+    <img src="https://raw.githubusercontent.com/PrivateAIM/node/master/.github/assets/icon.svg" alt="FLAME Node" height="100">
+  </a>
+</p>
 
-> Part of the [FLAME Node](../../README.md) monorepo — one of the node-side (data-station)
-> services for the FLAME platform, alongside the central [Hub](https://github.com/PrivateAIM/hub).
+<h1 align="center">@privateaim/node-message-broker 💬</h1>
 
-The **node-side message broker** for the FLAME platform. It is the thin TypeScript
-service that replaces the legacy Java `node-message-broker`. It owns only:
+<p align="center">
+  <b>The node-side message broker for the FLAME platform.</b><br>
+  Container-facing REST API, end-to-end crypto, and local delivery — relaying to the Hub durable mailbox.
+</p>
+
+<p align="center">
+  <a href="https://github.com/PrivateAIM/node/actions/workflows/main.yml"><img src="https://github.com/PrivateAIM/node/actions/workflows/main.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/node-%E2%89%A524-3c873a?logo=node.js&logoColor=fff" alt="node >=24">
+  <a href="https://github.com/PrivateAIM/node/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="license"></a>
+</p>
+
+<p align="center">
+  <a href="https://docs.privateaim.net"><b>Documentation</b></a> &nbsp;·&nbsp;
+  <a href="https://github.com/PrivateAIM/node">Monorepo</a> &nbsp;·&nbsp;
+  <a href="https://github.com/PrivateAIM/hub">Hub</a>
+</p>
+
+---
+
+Part of the **[FLAME Node](https://github.com/PrivateAIM/node)** monorepo — node-side (data-station)
+services for the [PrivateAIM](https://privateaim.net) platform, alongside the central [Hub](https://github.com/PrivateAIM/hub).
+
+A thin TypeScript service — the successor to the legacy Java `node-message-broker` — that owns only:
 
 1. **Container-facing REST API** — the SDK-compatible surface the FLAME `flamesdk`
    talks to (auth: node-local Authup JWT, the analysis presents its `KEYCLOAK_TOKEN`).
@@ -22,9 +46,17 @@ Durability and routing live in the **Hub** broker; this service is an encrypt/de
 
 ## Status
 
-Scaffold. The hexagonal skeleton, config, HTTP server, and webhook-subscription CRUD
-are in place. The Hub link, crypto, participant resolution, and message send/pull
-routes are Phase 4 (marked with `TODO`/stub in the code).
+In progress. In place: the hexagonal skeleton, config, HTTP server,
+webhook-subscription CRUD + fan-out delivery, the **Hub link** (REST `send` / `pull` /
+`ack` via `@privateaim/messenger-http-kit` + a reconnecting SSE wakeup stream, both
+authenticated as the node client), and the **end-to-end crypto** adapter (`seal` /
+`open` over `@privateaim/kit`'s `crypto/message`).
+
+Still open (Plan 013 Track B, Phase 4): wiring the `onWakeup` → pull → decrypt →
+`delivery.deliver()` loop, the container-facing message routes (`POST /:id/messages`,
+`…/broadcast`, `GET /:id/participants`, `…/participants/self`, and the additive pull
+endpoint), and the analysis policy (`ANALYSIS_SELF_MESSAGE_BROKER_USE`) + participant
+resolution — the `core/analysis` ports exist, but no adapter is wired yet.
 
 ## Configuration
 
@@ -51,7 +83,13 @@ npm run cli -- start
 
 ```
 src/
-├── core/            # ports — hub link, local delivery, analysis policy (no infra imports)
-├── adapters/        # implementations — http controllers, hub client, delivery
+├── core/            # ports — hub link, crypto, local delivery, analysis policy (no infra imports)
+├── adapters/        # implementations — http controllers, hub client + SSE wakeup, crypto, delivery
 └── app/             # orchestration — builder, factory, DI modules (config, components, http)
 ```
+
+## License
+
+Made with 💚
+
+Published under [Apache 2.0](https://github.com/PrivateAIM/node/blob/master/LICENSE).
