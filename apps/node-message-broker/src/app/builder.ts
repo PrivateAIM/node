@@ -9,6 +9,7 @@ import { BaseApplicationBuilder } from '@privateaim/server-kit';
 import type { IModule } from 'orkos';
 import { ConfigModule } from './modules/config/index.ts';
 import { ComponentsModule } from './modules/components/index.ts';
+import { CoreClientModule } from './modules/core-client/index.ts';
 import { HTTPModule } from './modules/http/index.ts';
 
 export class ServerMessageBrokerApplicationBuilder extends BaseApplicationBuilder {
@@ -18,6 +19,10 @@ export class ServerMessageBrokerApplicationBuilder extends BaseApplicationBuilde
 
     withComponents(instance?: ComponentsModule | false): this {
         return this.addModuleSlot('components', instance, () => new ComponentsModule());
+    }
+
+    withCoreClient(instance?: CoreClientModule | false): this {
+        return this.addModuleSlot('coreClient', instance, () => new CoreClientModule());
     }
 
     withHTTP(instance?: HTTPModule | false): this {
