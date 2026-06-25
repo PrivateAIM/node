@@ -22,9 +22,17 @@ Durability and routing live in the **Hub** broker; this service is an encrypt/de
 
 ## Status
 
-Scaffold. The hexagonal skeleton, config, HTTP server, and webhook-subscription CRUD
-are in place. The Hub link, crypto, participant resolution, and message send/pull
-routes are Phase 4 (marked with `TODO`/stub in the code).
+In progress. In place: the hexagonal skeleton, config, HTTP server,
+webhook-subscription CRUD + fan-out delivery, the **Hub link** (REST `send` / `pull` /
+`ack` via `@privateaim/messenger-http-kit` + a reconnecting SSE wakeup stream, both
+authenticated as the node client), and the **end-to-end crypto** adapter (`seal` /
+`open` over `@privateaim/kit`'s `crypto/message`).
+
+Still open (Plan 013 Track B, Phase 4): wiring the `onWakeup` → pull → decrypt →
+`delivery.deliver()` loop, the container-facing message routes (`POST /:id/messages`,
+`…/broadcast`, `GET /:id/participants`, `…/participants/self`, and the additive pull
+endpoint), and the analysis policy (`ANALYSIS_SELF_MESSAGE_BROKER_USE`) + participant
+resolution — the `core/analysis` ports exist, but no adapter is wired yet.
 
 ## Configuration
 
@@ -51,7 +59,7 @@ npm run cli -- start
 
 ```
 src/
-├── core/            # ports — hub link, local delivery, analysis policy (no infra imports)
-├── adapters/        # implementations — http controllers, hub client, delivery
+├── core/            # ports — hub link, crypto, local delivery, analysis policy (no infra imports)
+├── adapters/        # implementations — http controllers, hub client + SSE wakeup, crypto, delivery
 └── app/             # orchestration — builder, factory, DI modules (config, components, http)
 ```
