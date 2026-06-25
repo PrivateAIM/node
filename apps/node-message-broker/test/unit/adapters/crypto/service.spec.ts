@@ -171,39 +171,39 @@ describe('adapters/crypto/service', () => {
         await expect(serviceC.open(frame, aPubHex)).rejects.toThrow();
     });
 
-    it('throws when the frame salt/IV region is tampered', async () => {
+    it('throws when the salt/IV region is tampered', async () => {
         const {
-            aPubHex, 
-            bPubHex, 
-            serviceA, 
+            aPubHex,
+            bPubHex,
+            serviceA,
             serviceB,
         } = await setup();
 
         const frame = await serviceA.seal(`msg ${randomUUID()}`, bPubHex);
 
-        const i = Math.floor(frame.length / 2);
-        const swapped = frame[i] === 'A' ? 'B' : 'A';
-        const tampered = frame.slice(0, i) + swapped + frame.slice(i + 1);
+        // flip a whole byte on the decoded frame so the change can't be lost to
+        // base64 padding; the first byte lives in the HKDF salt
+        const raw = Buffer.from(frame, 'base64');
+        raw[0] ^= 0xff;
 
-        await expect(serviceB.open(tampered, aPubHex)).rejects.toThrow();
+        await expect(serviceB.open(raw.toString('base64'), aPubHex)).rejects.toThrow();
     });
 
     it('throws when the ciphertext/tag region is tampered', async () => {
         const {
-            aPubHex, 
-            bPubHex, 
-            serviceA, 
+            aPubHex,
+            bPubHex,
+            serviceA,
             serviceB,
         } = await setup();
 
         const frame = await serviceA.seal(`msg ${randomUUID()}`, bPubHex);
 
-        // last base64 char before any '=' padding lands in the GCM ciphertext/tag
-        const i = frame.replace(/=+$/, '').length - 1;
-        const swapped = frame[i] === 'A' ? 'B' : 'A';
-        const tampered = frame.slice(0, i) + swapped + frame.slice(i + 1);
+        // the last byte lives in the GCM auth tag
+        const raw = Buffer.from(frame, 'base64');
+        raw[raw.length - 1] ^= 0xff;
 
-        await expect(serviceB.open(tampered, aPubHex)).rejects.toThrow();
+        await expect(serviceB.open(raw.toString('base64'), aPubHex)).rejects.toThrow();
     });
 
     it('throws the explicit kit error for a malformed/too-short frame', async () => {
