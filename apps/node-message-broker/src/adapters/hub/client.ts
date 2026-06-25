@@ -5,38 +5,61 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Message, MessagePullResponse } from '@privateaim/messenger-kit';
-import type { IHubClient } from '../../core/hub/index.ts';
+import type {
+    MessageAckRequest,
+    MessageParty,
+    MessagePullQuery,
+    MessagePullResponse,
+    SendMessageRequest,
+} from '@privateaim/messenger-kit';
+import type {
+    IHubClient,
+    IMessengerClient,
+    IWakeupSource,
+} from '../../core/hub/index.ts';
 
-const NOT_IMPLEMENTED = 'HubClient is a Phase 4 stub (Plan 013 Track B): implement against @privateaim/messenger-http-kit + the SSE wakeup stream.';
+type HubClientContext = {
+    client: IMessengerClient,
+    wakeup: IWakeupSource
+};
 
 /**
- * Hub-link adapter. Phase 4 implements this with the `@privateaim/messenger-http-kit`
- * Hapic client (REST `send` / `pull` / `ack`) authenticating as the node client, plus
- * the SSE wakeup stream (`GET /messages/stream`) feeding `onWakeup`.
+ * Hub-link adapter. REST `send` / `pull` / `ack` go through the
+ * `@privateaim/messenger-http-kit` client (authenticated as the node client);
+ * `onWakeup` rides the SSE wakeup source. The node relays opaque end-to-end
+ * payloads — encryption/decryption is the caller's concern, not the Hub's.
  */
 export class HubClient implements IHubClient {
-    async send(): Promise<Message[]> {
-        throw new Error(NOT_IMPLEMENTED);
+    protected client: IMessengerClient;
+
+    protected wakeup: IWakeupSource;
+
+    constructor(ctx: HubClientContext) {
+        this.client = ctx.client;
+        this.wakeup = ctx.wakeup;
     }
 
-    async pull(): Promise<MessagePullResponse> {
-        throw new Error(NOT_IMPLEMENTED);
+    send(input: SendMessageRequest): Promise<string[]> {
+        return this.client.message.send(input);
     }
 
-    async ack(): Promise<void> {
-        throw new Error(NOT_IMPLEMENTED);
+    pull(query?: MessagePullQuery): Promise<MessagePullResponse> {
+        return this.client.message.pull(query);
     }
 
-    onWakeup(): () => void {
-        return () => {};
+    ack(input: MessageAckRequest): Promise<void> {
+        return this.client.message.ack(input);
     }
 
-    async start(): Promise<void> {
-        // no-op until the Phase 4 SSE subscription lands
+    onWakeup(listener: (recipient: MessageParty) => void): () => void {
+        return this.wakeup.subscribe((event) => listener(event.recipient));
     }
 
-    async stop(): Promise<void> {
-        // no-op until the Phase 4 SSE subscription lands
+    start(): Promise<void> {
+        return this.wakeup.start();
+    }
+
+    stop(): Promise<void> {
+        return this.wakeup.stop();
     }
 }

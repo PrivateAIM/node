@@ -6,3 +6,4 @@
  */
 
 export * from './client.ts';
+export * from './sse-wakeup-source.ts';
