@@ -18,6 +18,7 @@ export function createApplication(): Application {
             ],
         })
         .withComponents()
+        .withCoreClient()
         .withHTTP();
 
     return builder.build();

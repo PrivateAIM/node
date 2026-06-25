@@ -9,8 +9,28 @@
 export type AnalysisParticipant = {
     nodeId: string,
     nodeType: string,
-    clientId: string
+    clientId: string,
+    /** the node's ECDH public key (hex-encoded SPKI PEM) for node-to-node E2E crypto */
+    publicKey: string
 };
+
+/** The slice of a server-core `Node` the broker reads off the analysis-node relation. */
+export type CoreNode = {
+    id: string,
+    type: string,
+    client_id: string | null,
+    public_key: string | null
+};
+
+/**
+ * Lists the nodes participating in an analysis — server-core's analysis-node
+ * relation with the `node` included. Declared as a narrow port so the resolver can
+ * be tested with a fake; the live implementation (in `app/modules/core-client`)
+ * wraps `@privateaim/core-http-kit`'s `analysisNode.getMany`.
+ */
+export interface IAnalysisNodeProvider {
+    list(analysisId: string): Promise<CoreNode[]>;
+}
 
 /**
  * Analysis authorization lives node-side (the Hub is analysis-agnostic). Asserts
