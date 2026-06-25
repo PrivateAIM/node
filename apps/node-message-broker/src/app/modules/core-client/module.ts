@@ -59,7 +59,12 @@ export class CoreClientModule implements IModule {
                     filter: { analysis_id: analysisId },
                     include: ['node'],
                 });
-                return response.data.map((entry) => entry.node);
+                // `node` is typed non-null, but server-core may omit the relation
+                // (include not honored / incomplete data); drop those so the
+                // resolver never dereferences an undefined node.
+                return response.data
+                    .map((entry) => entry.node)
+                    .filter((node): node is NonNullable<typeof node> => !!node);
             },
         };
 
