@@ -14,10 +14,18 @@ import type { ICryptoService } from '../../../../src/core/crypto/index.ts';
  * under the correct recipient key without real crypto.
  */
 export class FakeCryptoService implements ICryptoService {
-    sealCalls: { data: MessageSealInput, recipientPublicKey: string }[] = [];
+    sealCalls: {
+        data: MessageSealInput, 
+        recipientPublicKey: string, 
+        info?: MessageSealInput 
+    }[] = [];
 
-    seal = async (data: MessageSealInput, recipientPublicKey: string): Promise<string> => {
-        this.sealCalls.push({ data, recipientPublicKey });
+    seal = async (data: MessageSealInput, recipientPublicKey: string, info?: MessageSealInput): Promise<string> => {
+        this.sealCalls.push({
+            data, 
+            recipientPublicKey, 
+            info, 
+        });
         return `sealed:${recipientPublicKey}`;
     };
 
