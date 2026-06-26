@@ -8,6 +8,7 @@
 import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
 import { ConfigInjectionKey } from './constants.ts';
+import { assertProductionConfig } from './guard.ts';
 import { normalizeConfig } from './normalize.ts';
 import { readConfigFromEnv } from './read.ts';
 import type { Config } from './types.ts';
@@ -30,6 +31,9 @@ export class ConfigModule implements IModule {
 
     private async read(): Promise<Config> {
         const raw = readConfigFromEnv();
-        return normalizeConfig(raw);
+        const config = await normalizeConfig(raw);
+        // env-derived startup only: refuse to run in production on development defaults.
+        assertProductionConfig(config);
+        return config;
     }
 }

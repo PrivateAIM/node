@@ -27,5 +27,7 @@ export type InboundProcessorOptions = {
     /** long-poll budget in ms for the fallback loop's pull (default 20000) */
     waitMs?: number,
     /** backoff in ms after a failed pull before the fallback loop retries (default 1000) */
-    errorBackoffMs?: number
+    errorBackoffMs?: number,
+    /** transient-failure attempts before a message is dead-lettered (acked to drop) (default 5) */
+    maxAttempts?: number
 };
