@@ -6,10 +6,12 @@
  */
 
 import { TypedToken } from 'eldin';
+import type { ICryptoService } from '../../../core/crypto/index.ts';
 import type { IDeliveryService } from '../../../core/delivery/index.ts';
 import type { IHubClient } from '../../../core/hub/index.ts';
 
 export const ComponentsInjectionKey = {
     Delivery: new TypedToken<IDeliveryService>('DeliveryService'),
     HubClient: new TypedToken<IHubClient>('HubClient'),
+    Crypto: new TypedToken<ICryptoService>('CryptoService'),
 };

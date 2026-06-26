@@ -31,9 +31,11 @@ import { HTTPInjectionKey } from './constants.ts';
 export class HTTPModule implements IModule {
     readonly name = 'http';
 
-    // `authupClient` is optional so partial builds (e.g. tests) still work; when present
-    // it must set up before HTTP so the authorization middleware + permission checker run.
-    readonly dependencies: (string | ModuleDependency)[] = ['config', 'components', { name: 'authupClient', optional: true }];
+    // `components` + `coreClient` register the ports the controllers resolve (delivery,
+    // crypto, hub, participant resolver, analysis lookup). `authupClient` is optional so
+    // partial builds (e.g. tests) still work; when present it must set up before HTTP so
+    // the authorization middleware + permission checker run.
+    readonly dependencies: (string | ModuleDependency)[] = ['config', 'components', 'coreClient', { name: 'authupClient', optional: true }];
 
     private instance: HTTPServer | undefined;
 

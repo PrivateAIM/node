@@ -14,6 +14,7 @@ import {
     createAuthupClientAuthenticationHook,
     createAuthupClientTokenCreator,
 } from '@privateaim/server-kit';
+import { CryptoService } from '../../../adapters/crypto/index.ts';
 import { MemoryDeliveryService } from '../../../adapters/delivery/index.ts';
 import { HubClient, SseWakeupSource } from '../../../adapters/hub/index.ts';
 import { ConfigInjectionKey } from '../config/constants.ts';
@@ -45,6 +46,10 @@ export class ComponentsModule implements IModule {
 
         const delivery = new MemoryDeliveryService();
         container.register(ComponentsInjectionKey.Delivery, { useValue: delivery });
+
+        // node-to-node E2E crypto; the operator supplies the single ECDH private key.
+        const crypto = new CryptoService({ privateKey: config.nodePrivateKey });
+        container.register(ComponentsInjectionKey.Crypto, { useValue: crypto });
 
         // node-client credentials authenticate every Hub interaction; this creator
         // backs the REST auth hook directly and the SSE Authorization header via a
