@@ -52,7 +52,7 @@ architecture as the Hub backend services.
 
 | Service | Description |
 |---------|-------------|
-| **[node-message-broker](apps/node-message-broker)** 💬 | Node-side message broker — container-facing REST API, end-to-end crypto, local delivery; relays to the Hub durable mailbox. Replaces the legacy Java `node-message-broker`. |
+| **[node-message-broker](apps/node-message-broker)** 💬 | Node-side message broker — `flamesdk`-compatible container REST API, node-to-node end-to-end crypto, and local webhook delivery; relays to and pulls from the Hub durable mailbox. Replaces the legacy Java `node-message-broker`. |
 
 _Further node-side services may be added here over time; others may remain in their own repositories._
 
