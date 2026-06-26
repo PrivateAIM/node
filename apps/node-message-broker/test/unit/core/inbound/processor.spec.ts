@@ -6,7 +6,12 @@
  */
 
 import type { Message } from '@privateaim/messenger-kit';
-import { describe, expect, it } from 'vitest';
+import { 
+    describe, 
+    expect, 
+    it, 
+    vi, 
+} from 'vitest';
 import type { AnalysisParticipant } from '../../../../src/core/analysis/index.ts';
 import { InboundDeliveryProcessor } from '../../../../src/core/inbound/index.ts';
 import { FakeParticipantResolver } from '../messaging/fake-participant-resolver.ts';
@@ -93,7 +98,12 @@ describe('core/inbound/processor', () => {
         const acked = await processor.processBatch([inboundMessage()]);
 
         expect(acked).toEqual(['msg-1']);
-        expect(crypto.openCalls).toEqual([{ payload: 'cipher-1', senderPublicKey: 'pk-b' }]);
+        // the analysis is bound into the open's key derivation (HKDF info)
+        expect(crypto.openCalls).toEqual([{
+            payload: 'cipher-1', 
+            senderPublicKey: 'pk-b', 
+            info: 'a1', 
+        }]);
         expect(delivery.delivered).toEqual([{ analysisId: 'a1', message: MESSAGE_BODY }]);
         expect(hub.acked).toEqual([['msg-1']]);
     });
@@ -164,11 +174,13 @@ describe('core/inbound/processor', () => {
             delivery,
             processor,
         } = setup();
-        hub.pullBatches.push([inboundMessage()]);
 
+        // start with an empty mailbox so the fallback loop parks; the wakeup-triggered drain
+        // is what picks up the message seeded afterwards.
         processor.start();
         expect(hub.wakeupListenerCount).toBe(1);
 
+        hub.pullBatches.push([inboundMessage()]);
         hub.emitWakeup({ type: 'client', id: 'client-self' });
         await processor.whenIdle();
 
@@ -177,6 +189,26 @@ describe('core/inbound/processor', () => {
 
         await processor.stop();
         expect(hub.wakeupListenerCount).toBe(0);
+        hub.releaseParked();
+    });
+
+    it('delivers and acks a backlog via the long-poll fallback, without any wakeup', async () => {
+        const {
+            hub,
+            delivery,
+            processor,
+        } = setup();
+        hub.pullBatches.push([inboundMessage()]);
+
+        // no emitWakeup — the fallback loop's pull({ wait }) must catch the pending message
+        processor.start();
+
+        await vi.waitFor(() => {
+            expect(delivery.delivered).toEqual([{ analysisId: 'a1', message: MESSAGE_BODY }]);
+        });
+        expect(hub.acked).toEqual([['msg-1']]);
+
+        await processor.stop();
         hub.releaseParked();
     });
 });

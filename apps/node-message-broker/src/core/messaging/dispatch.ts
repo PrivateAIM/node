@@ -56,7 +56,11 @@ async function sendSealed(
     data: MessageSealInput,
 ): Promise<string[]> {
     const sent = await Promise.all(recipients.map(async (recipient) => {
-        const sealed = await deps.crypto.seal(data, recipient.publicKey);
+        // Bind the analysis into the key derivation (HKDF info) so the recipient's
+        // `open` only succeeds when the relayed `metadata.analysisId` is unchanged — a
+        // relabel by the untrusted Hub (or a replay) fails to decrypt instead of being
+        // delivered to the wrong analysis's webhooks.
+        const sealed = await deps.crypto.seal(data, recipient.publicKey, analysisId);
         return deps.hub.send({
             recipients: [{ type: MessagePartyKind.CLIENT, id: recipient.clientId }],
             data: sealed,

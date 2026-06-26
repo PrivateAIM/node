@@ -202,8 +202,11 @@ export class InboundDeliveryProcessor {
             throw new Error('message carries no ciphertext payload');
         }
 
+        // `analysisId` is bound into the key derivation (HKDF info, matching the seal path),
+        // so a `metadata.analysisId` relabelled in transit by the untrusted Hub fails to
+        // decrypt here rather than being mis-routed to another analysis's webhooks.
         const senderPublicKey = await this.resolveSenderPublicKey(analysisId, message.sender_id);
-        const plaintext = await this.deps.crypto.open(message.data, senderPublicKey);
+        const plaintext = await this.deps.crypto.open(message.data, senderPublicKey, analysisId);
         const payload = JSON.parse(this.decoder.decode(plaintext));
 
         await this.deps.delivery.deliver(analysisId, payload);

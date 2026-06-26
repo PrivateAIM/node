@@ -74,6 +74,8 @@ describe('core/messaging/dispatch', () => {
         expect(ids).toHaveLength(2);
         expect(hub.sends).toHaveLength(2);
         expect(crypto.sealCalls.map((call) => call.recipientPublicKey).sort()).toEqual(['pk-b', 'pk-c']);
+        // the analysis is bound into each seal's key derivation (HKDF info)
+        expect(crypto.sealCalls.every((call) => call.info === 'a1')).toBe(true);
 
         const sends = byRecipientClient(hub.sends);
         expect(sends.get('client-b')).toMatchObject({

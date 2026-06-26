@@ -34,13 +34,20 @@ export class FakeInboundHubClient implements IHubClient {
     send = async (): Promise<string[]> => [];
 
     pull = async (query?: MessagePullQuery): Promise<MessagePullResponse> => {
+        // Hub contract: return pending messages immediately; only a long-poll with an empty
+        // mailbox parks until a message arrives (here: until released / stopped).
+        const nextBatch = this.pullBatches.shift();
+        if (nextBatch) {
+            return { messages: nextBatch };
+        }
+
         if (query?.wait != null) {
             return new Promise<MessagePullResponse>((resolve) => {
                 this.parkedResolvers.push(resolve);
             });
         }
 
-        return { messages: this.pullBatches.shift() ?? [] };
+        return { messages: [] };
     };
 
     ack = async (input: MessageAckRequest): Promise<void> => {
