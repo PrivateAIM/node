@@ -6,7 +6,7 @@
  */
 
 import type { IContainer } from 'eldin';
-import type { IModule } from 'orkos';
+import type { IModule, ModuleDependency } from 'orkos';
 import { App, defineCoreHandler, serve } from 'routup';
 import {
     AuthupClientInjectionKey,
@@ -17,9 +17,12 @@ import {
 } from '@privateaim/server-kit';
 import {
     createAuthupTokenVerifier,
+    mountDecoratorsMiddleware,
     mountErrorMiddleware,
     mountMiddlewares,
 } from '@privateaim/server-http-kit';
+import { AuthupPermissionGateway } from '../../../adapters/authz/index.ts';
+import { mountPermissionChecker } from '../../../adapters/http/middleware/permission-checker.ts';
 import { ConfigInjectionKey } from '../config/constants.ts';
 import { createControllers } from './controller.ts';
 import type { HTTPServer } from './constants.ts';
@@ -28,7 +31,9 @@ import { HTTPInjectionKey } from './constants.ts';
 export class HTTPModule implements IModule {
     readonly name = 'http';
 
-    readonly dependencies: string[] = ['config', 'components'];
+    // `authupClient` is optional so partial builds (e.g. tests) still work; when present
+    // it must set up before HTTP so the authorization middleware + permission checker run.
+    readonly dependencies: (string | ModuleDependency)[] = ['config', 'components', { name: 'authupClient', optional: true }];
 
     private instance: HTTPServer | undefined;
 
@@ -48,6 +53,8 @@ export class HTTPModule implements IModule {
         const authupResult = container.tryResolve(AuthupClientInjectionKey);
         const redisResult = container.tryResolve(RedisClientInjectionKey);
 
+        // controllers are mounted separately (below) so the permission-checker override
+        // can sit between the authorization middleware and the controllers.
         mountMiddlewares(app, {
             basic: true,
             cors: true,
@@ -69,8 +76,17 @@ export class HTTPModule implements IModule {
                 }),
             },
             swagger: false,
-            decorators: { controllers },
         });
+
+        // Override the request permission checker so capabilities evaluate against Authup
+        // over HTTP. Skipped in tests, where the authorization middleware's dry-run grant
+        // applies and no Authup client is reachable.
+        if (authupResult.success && !isTestEnvironment) {
+            const gateway = new AuthupPermissionGateway({ client: authupResult.data });
+            mountPermissionChecker(app, gateway);
+        }
+
+        mountDecoratorsMiddleware(app, { controllers });
 
         mountErrorMiddleware(app, { logger });
 

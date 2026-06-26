@@ -5,5 +5,5 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export * from './types.ts';
-export * from './policy.ts';
+export * from './authup-permission-gateway.ts';
+export * from './http-permission-provider.ts';

@@ -13,7 +13,7 @@ import {
     createAuthupClientAuthenticationHook,
     createAuthupClientTokenCreator,
 } from '@privateaim/server-kit';
-import type { IAnalysisNodeProvider } from '../../../core/analysis/index.ts';
+import type { IAnalysisClientLookup, IAnalysisNodeProvider } from '../../../core/analysis/index.ts';
 import { ParticipantResolver } from '../../../adapters/core/index.ts';
 import { ConfigInjectionKey } from '../config/constants.ts';
 import { CoreClientInjectionKey } from './constants.ts';
@@ -74,6 +74,16 @@ export class CoreClientModule implements IModule {
             logger,
         });
         container.register(CoreClientInjectionKey.ParticipantResolver, { useValue: resolver });
+
+        // resolves the Authup client owning an analysis (server-core), used by the
+        // analysis policy (S3) to bind a caller's token to the path analysis.
+        const analysisClientLookup: IAnalysisClientLookup = {
+            getClientId: async (analysisId) => {
+                const analysis = await client.analysis.getOne(analysisId);
+                return analysis.client_id;
+            },
+        };
+        container.register(CoreClientInjectionKey.AnalysisClientLookup, { useValue: analysisClientLookup });
     }
 
     async teardown(): Promise<void> {
