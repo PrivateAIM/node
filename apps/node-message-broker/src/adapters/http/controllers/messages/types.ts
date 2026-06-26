@@ -20,21 +20,17 @@ export type AnalysisMessageControllerContext = {
 };
 
 /**
- * Body of `POST /analyses/:id/messages`. `recipients` are participant **node ids**
- * (as returned by the participants endpoint); `message` is an opaque JSON payload the
- * broker seals and relays verbatim — the SDK round-trips its own `meta` envelope inside it.
+ * Validated body of `POST /analyses/:id/messages` (and, sans `recipients`, of
+ * `…/broadcast`). `recipients` are participant **node ids**; `message` is an opaque JSON
+ * payload the broker seals and relays verbatim — the SDK round-trips its own `meta`
+ * envelope inside it.
  */
-export type MessageSendBody = {
-    recipients?: unknown,
-    message?: unknown
+export type AnalysisMessagePayload = {
+    recipients: string[],
+    message: unknown
 };
 
-/** Body of `POST /analyses/:id/messages/broadcast` — an opaque JSON payload, no recipients. */
-export type MessageBroadcastBody = {
-    message?: unknown
-};
-
-/** Body of the webhook-subscription endpoints. */
-export type WebhookSubscriptionBody = {
-    webhookUrl?: string
+/** Validated body of the webhook-subscription endpoints. */
+export type WebhookSubscriptionPayload = {
+    webhookUrl: string
 };

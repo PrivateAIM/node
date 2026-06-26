@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { BadRequestError, EntityNotFoundError } from '@privateaim/errors';
+import { EntityNotFoundError } from '@privateaim/errors';
 import { PermissionName } from '@privateaim/kit';
 import {
     ForceLoggedInMiddleware,
@@ -30,10 +30,14 @@ import { broadcastAnalysisMessage, dispatchAnalysisMessage } from '../../../../c
 import type { MessageDispatchDeps } from '../../../../core/messaging/index.ts';
 import type {
     AnalysisMessageControllerContext,
-    MessageBroadcastBody,
-    MessageSendBody,
-    WebhookSubscriptionBody,
+    AnalysisMessagePayload,
+    WebhookSubscriptionPayload,
 } from './types.ts';
+import {
+    AnalysisMessageValidator,
+    MESSAGE_SEND_GROUP,
+    WebhookSubscriptionValidator,
+} from './validators/index.ts';
 
 /**
  * Container-facing API (auth: node-local Authup JWT — the analysis presents its
@@ -41,10 +45,12 @@ import type {
  * carry **node ids**, `message` is an opaque JSON payload relayed verbatim, sends answer
  * `202` with an empty body, and participant lists are bare arrays of `{ nodeId, nodeType }`.
  *
- * Every analysis-scoped route is gated by {@link authorize}: the caller must hold the
+ * Request bodies are validated with validup + zod (see `./validators`); a validation
+ * failure throws a `ValidupError` that the error middleware renders as a `400`. Every
+ * analysis-scoped route is additionally gated by {@link authorize}: the caller must hold the
  * `ANALYSIS_SELF_MESSAGE_BROKER_USE` capability and own the analysis (the Hub stays
- * analysis-agnostic). Inbound delivery is webhook-push only (no pull endpoint), managed
- * via the subscription CRUD below.
+ * analysis-agnostic). Inbound delivery is webhook-push only (no pull endpoint), managed via
+ * the subscription CRUD below.
  */
 @DTags('messages')
 @DController('/analyses')
@@ -57,6 +63,10 @@ export class AnalysisMessageController {
 
     protected dispatch: MessageDispatchDeps;
 
+    protected messageValidator: AnalysisMessageValidator;
+
+    protected subscriptionValidator: WebhookSubscriptionValidator;
+
     constructor(ctx: AnalysisMessageControllerContext) {
         this.delivery = ctx.delivery;
         this.resolver = ctx.resolver;
@@ -66,20 +76,24 @@ export class AnalysisMessageController {
             crypto: ctx.crypto,
             hub: ctx.hub,
         };
+        this.messageValidator = new AnalysisMessageValidator();
+        this.subscriptionValidator = new WebhookSubscriptionValidator();
     }
 
     @DPost('/:id/messages', [ForceLoggedInMiddleware])
     async send(
         @DPath('id') analysisId: string,
-        @DBody() body: MessageSendBody,
+        @DBody() body: Partial<AnalysisMessagePayload>,
         @DContext() event: IAppEvent,
     ) {
         await this.authorize(event, analysisId);
 
+        const { recipients, message } = await this.messageValidator.run(body, { group: MESSAGE_SEND_GROUP });
+
         await dispatchAnalysisMessage(this.dispatch, {
             analysisId,
-            recipientNodeIds: this.requireRecipients(body),
-            data: JSON.stringify(this.requireMessage(body)),
+            recipientNodeIds: recipients,
+            data: JSON.stringify(message),
         });
 
         event.response.status = 202;
@@ -89,14 +103,16 @@ export class AnalysisMessageController {
     @DPost('/:id/messages/broadcast', [ForceLoggedInMiddleware])
     async broadcast(
         @DPath('id') analysisId: string,
-        @DBody() body: MessageBroadcastBody,
+        @DBody() body: Partial<AnalysisMessagePayload>,
         @DContext() event: IAppEvent,
     ) {
         await this.authorize(event, analysisId);
 
+        const { message } = await this.messageValidator.run(body);
+
         await broadcastAnalysisMessage(this.dispatch, {
             analysisId,
-            data: JSON.stringify(this.requireMessage(body)),
+            data: JSON.stringify(message),
         });
 
         event.response.status = 202;
@@ -138,9 +154,9 @@ export class AnalysisMessageController {
     @DPost('/:id/messages/subscriptions', [ForceLoggedInMiddleware])
     async subscribe(
         @DPath('id') analysisId: string,
-        @DBody() data: WebhookSubscriptionBody,
+        @DBody() body: Partial<WebhookSubscriptionPayload>,
     ) {
-        const webhookUrl = this.requireWebhookUrl(data);
+        const { webhookUrl } = await this.subscriptionValidator.run(body);
         await this.delivery.register({ analysisId, webhookUrl });
         return { analysisId, webhookUrl };
     }
@@ -154,9 +170,9 @@ export class AnalysisMessageController {
     @DDelete('/:id/messages/subscriptions', [ForceLoggedInMiddleware])
     async unsubscribe(
         @DPath('id') analysisId: string,
-        @DBody() data: WebhookSubscriptionBody,
+        @DBody() body: Partial<WebhookSubscriptionPayload>,
     ) {
-        const webhookUrl = this.requireWebhookUrl(data);
+        const { webhookUrl } = await this.subscriptionValidator.run(body);
         await this.delivery.unregister(analysisId, webhookUrl);
         return { analysisId, webhookUrl };
     }
@@ -174,31 +190,5 @@ export class AnalysisMessageController {
         const identity = useRequestIdentity(event);
         const clientId = identity?.type === 'client' ? identity.id : undefined;
         await assertClientOwnsAnalysis(this.analyses, analysisId, clientId);
-    }
-
-    protected requireRecipients(body: MessageSendBody): string[] {
-        const recipients = body?.recipients;
-        if (
-            !Array.isArray(recipients) ||
-            recipients.length === 0 ||
-            recipients.some((recipient) => typeof recipient !== 'string' || recipient.length === 0)
-        ) {
-            throw new BadRequestError('A non-empty recipients array of node ids is required.');
-        }
-        return recipients as string[];
-    }
-
-    protected requireMessage(body: MessageBroadcastBody): unknown {
-        if (!body || body.message === undefined || body.message === null) {
-            throw new BadRequestError('A message payload is required.');
-        }
-        return body.message;
-    }
-
-    protected requireWebhookUrl(data: WebhookSubscriptionBody): string {
-        if (!data || typeof data.webhookUrl !== 'string' || data.webhookUrl.length === 0) {
-            throw new BadRequestError('A webhookUrl is required.');
-        }
-        return data.webhookUrl;
     }
 }

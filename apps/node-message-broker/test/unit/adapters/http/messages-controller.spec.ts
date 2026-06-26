@@ -128,8 +128,10 @@ describe('adapters/http/controllers/messages', () => {
 
         expect(hub.sends).toHaveLength(2);
         expect(crypto.sealCalls.map((call) => call.recipientPublicKey).sort()).toEqual(['pk-b', 'pk-c']);
-        // the opaque JSON payload is serialized verbatim before sealing
-        expect(crypto.sealCalls.every((call) => call.data === JSON.stringify(message))).toBe(true);
+        // the opaque JSON payload is serialized and sealed verbatim for every recipient
+        for (const call of crypto.sealCalls) {
+            expect(JSON.parse(call.data as string)).toEqual(message);
+        }
 
         const recipientClientIds = hub.sends.flatMap((send) => send.recipients.map((recipient) => recipient.id));
         expect(recipientClientIds.sort()).toEqual(['client-b', 'client-c']);
