@@ -19,6 +19,7 @@ export function createApplication(): Application {
         })
         .withComponents()
         .withCoreClient()
+        .withInbound()
         .withAuthupHook()
         .withAuthupClient()
         .withHTTP();
