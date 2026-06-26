@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ForbiddenError } from '@ebec/http';
 import { describe, expect, it } from 'vitest';
 import { assertClientOwnsAnalysis } from '../../../../src/core/analysis/index.ts';
 import { FakeAnalysisClientLookup } from './fake-analysis-client-lookup.ts';
@@ -17,26 +18,30 @@ describe('core/analysis/policy', () => {
         expect(analyses.calls).toEqual(['a1']);
     });
 
-    it('rejects a caller not bound to a client', async () => {
+    it('rejects a caller not bound to a client with a ForbiddenError', async () => {
         const analyses = new FakeAnalysisClientLookup();
 
-        await expect(assertClientOwnsAnalysis(analyses, 'a1', undefined)).rejects.toThrow(/not bound to a client/i);
+        const error = await assertClientOwnsAnalysis(analyses, 'a1', undefined).catch((err) => err);
+        expect(error).toBeInstanceOf(ForbiddenError);
+        expect(error.message).toMatch(/not bound to a client/i);
         // the analysis is never looked up once the caller has no client
         expect(analyses.calls).toEqual([]);
     });
 
-    it('rejects when the analysis is unknown / has no client', async () => {
+    it('rejects an unknown analysis (no owner client) with a ForbiddenError', async () => {
         const analyses = new FakeAnalysisClientLookup();
 
-        await expect(assertClientOwnsAnalysis(analyses, 'unknown', 'client-analysis'))
-            .rejects.toThrow(/does not belong to this analysis/i);
+        const error = await assertClientOwnsAnalysis(analyses, 'unknown', 'client-analysis').catch((err) => err);
+        expect(error).toBeInstanceOf(ForbiddenError);
+        expect(error.message).toMatch(/does not belong to this analysis/i);
     });
 
-    it('rejects when the caller client does not own the analysis', async () => {
+    it('rejects when the caller client does not own the analysis with a ForbiddenError', async () => {
         const analyses = new FakeAnalysisClientLookup();
         analyses.clientIdByAnalysis.set('a1', 'client-other');
 
-        await expect(assertClientOwnsAnalysis(analyses, 'a1', 'client-analysis'))
-            .rejects.toThrow(/does not belong to this analysis/i);
+        const error = await assertClientOwnsAnalysis(analyses, 'a1', 'client-analysis').catch((err) => err);
+        expect(error).toBeInstanceOf(ForbiddenError);
+        expect(error.message).toMatch(/does not belong to this analysis/i);
     });
 });
