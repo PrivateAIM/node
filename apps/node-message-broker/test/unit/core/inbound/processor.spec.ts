@@ -74,6 +74,7 @@ function setup() {
         {
             waitMs: 50,
             errorBackoffMs: 5,
+            maxAttempts: 3,
         },
     );
 
@@ -108,7 +109,7 @@ describe('core/inbound/processor', () => {
         expect(hub.acked).toEqual([['msg-1']]);
     });
 
-    it('isolates a decrypt failure and still delivers and acks the rest of the batch', async () => {
+    it('dead-letters a permanently undecryptable message and still delivers the rest', async () => {
         const {
             crypto,
             delivery,
@@ -123,26 +124,14 @@ describe('core/inbound/processor', () => {
             inboundMessage({ id: 'good', data: 'cipher-2' }),
         ]);
 
-        expect(acked).toEqual(['good']);
+        // a decrypt failure is permanent → dropped (acked away), not retried forever
+        expect(acked).toEqual(['bad', 'good']);
+        expect(processor.droppedCount).toBe(1);
         expect(delivery.delivered.map((entry) => entry.message)).toEqual([{ ok: true }]);
-        expect(hub.acked).toEqual([['good']]);
+        expect(hub.acked).toEqual([['bad', 'good']]);
     });
 
-    it('does not ack a message whose local delivery fails (left for redelivery)', async () => {
-        const {
-            delivery,
-            hub,
-            processor,
-        } = setup();
-        delivery.failAnalyses.add('a1');
-
-        const acked = await processor.processBatch([inboundMessage()]);
-
-        expect(acked).toEqual([]);
-        expect(hub.acked).toEqual([]);
-    });
-
-    it('skips messages without an analysisId or ciphertext payload', async () => {
+    it('drops permanent failures (no analysisId / ciphertext / unknown sender) on the first attempt', async () => {
         const {
             delivery,
             hub,
@@ -152,20 +141,56 @@ describe('core/inbound/processor', () => {
         const acked = await processor.processBatch([
             inboundMessage({ id: 'no-analysis', metadata: null }),
             inboundMessage({ id: 'no-cipher', data: null }),
+            inboundMessage({ id: 'stranger', sender_id: 'client-stranger' }),
         ]);
 
-        expect(acked).toEqual([]);
+        expect(acked).toEqual(['no-analysis', 'no-cipher', 'stranger']);
+        expect(processor.droppedCount).toBe(3);
         expect(delivery.delivered).toEqual([]);
-        expect(hub.acked).toEqual([]);
+        expect(hub.acked).toEqual([['no-analysis', 'no-cipher', 'stranger']]);
     });
 
-    it('skips a message from an unknown sender', async () => {
-        const { delivery, processor } = setup();
+    it('retries a transient delivery failure and dead-letters it only after maxAttempts', async () => {
+        const {
+            delivery,
+            hub,
+            processor,
+        } = setup();
+        delivery.failAnalyses.add('a1'); // webhook outage — transient
 
-        const acked = await processor.processBatch([inboundMessage({ sender_id: 'client-stranger' })]);
+        // attempts 1 and 2 (< maxAttempts=3): left unacked for redelivery
+        expect(await processor.processBatch([inboundMessage()])).toEqual([]);
+        expect(await processor.processBatch([inboundMessage()])).toEqual([]);
+        expect(processor.droppedCount).toBe(0);
+        expect(hub.acked).toEqual([]);
 
-        expect(acked).toEqual([]);
-        expect(delivery.delivered).toEqual([]);
+        // attempt 3 reaches the cap → dead-lettered (acked to drop)
+        expect(await processor.processBatch([inboundMessage()])).toEqual(['msg-1']);
+        expect(processor.droppedCount).toBe(1);
+        expect(hub.acked).toEqual([['msg-1']]);
+    });
+
+    it('resets the attempt count after a recovered transient failure', async () => {
+        const {
+            delivery,
+            processor,
+        } = setup();
+        delivery.failAnalyses.add('a1');
+
+        await processor.processBatch([inboundMessage()]); // attempt 1, unacked
+        await processor.processBatch([inboundMessage()]); // attempt 2, unacked
+
+        delivery.failAnalyses.delete('a1'); // outage recovers
+        const acked = await processor.processBatch([inboundMessage()]);
+
+        // delivered on recovery, dropped nothing, and the counter is cleared for the id
+        expect(acked).toEqual(['msg-1']);
+        expect(processor.droppedCount).toBe(0);
+
+        // a subsequent transient failure starts counting from one again
+        delivery.failAnalyses.add('a1');
+        expect(await processor.processBatch([inboundMessage()])).toEqual([]);
+        expect(processor.droppedCount).toBe(0);
     });
 
     it('drains the backlog on a wakeup, then unsubscribes on stop', async () => {
