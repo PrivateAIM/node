@@ -53,6 +53,6 @@
         "test": "cross-env NODE_ENV=test vitest run --config test/vitest.config.ts"
     },
     "devDependencies": {
-        "vitest": "^4.1.11"
+        "vitest": "^4.1.12"
     }
 }
